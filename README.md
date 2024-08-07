@@ -33,55 +33,12 @@ def rasterize_gaussians(*args, **kwargs):
 class _RasterizeGaussians(torch.autograd.Function):
     @staticmethod
     def forward(ctx, *args, **kwargs):
-        num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
-        return color, radii
+        _C.rasterize_gaussians(*args)
 
     @staticmethod
     def backward(ctx, grad_out_color, _):
+        _C.rasterize_gaussians_backward(*args)
 
-        # Restore necessary values from context
-        num_rendered = ctx.num_rendered
-        raster_settings = ctx.raster_settings
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer = ctx.saved_tensors
-
-        # Restructure args as C++ method expects them
-        args = (raster_settings.bg,
-                means3D, 
-                radii, 
-                colors_precomp, 
-                scales, 
-                rotations, 
-                raster_settings.scale_modifier, 
-                cov3Ds_precomp, 
-                raster_settings.viewmatrix, 
-                raster_settings.projmatrix, 
-                raster_settings.tanfovx, 
-                raster_settings.tanfovy, 
-                grad_out_color, 
-                sh, 
-                raster_settings.sh_degree, 
-                raster_settings.campos,
-                geomBuffer,
-                num_rendered,
-                binningBuffer,
-                imgBuffer,
-                raster_settings.debug)
-
-        grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations = _C.rasterize_gaussians_backward(*args)
-
-        grads = (
-            grad_means3D,
-            grad_means2D,
-            grad_sh,
-            grad_colors_precomp,
-            grad_opacities,
-            grad_scales,
-            grad_rotations,
-            grad_cov3Ds_precomp,
-            None,
-        )
-
-        return grads
 ```
 
 The `rasterize_gaussians` function calls `_RasterizeGaussians` that is of type `torch.autograd.Function`, The `torch.autograd.Function` is another alternative to `torch.nn.Module` that allows you to define and implement your own neural network modules but with additional `backward` function. We have to derive gradient calculation via chain rule and implement `backward` function using operations provided by PyTorch. However if operations of PyTorch is slow and you want to optimize the speed using CUDA, this is the entry point that links PyTorch with your customized CUDA kernels. [PyTorch - Extending Autograd](https://pytorch.org/docs/stable/notes/extending.html#extending-autograd) gives a tutorial w.r.t. how to use this class.
